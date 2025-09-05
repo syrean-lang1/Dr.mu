@@ -1,0 +1,128 @@
+sequenceDiagram
+    participant P as Patient
+    participant UI as Frontend
+    participant API as Backend API
+    participant Auth as AuthService
+    participant AS as AppointmentService
+    participant MS as MessageService
+    participant CS as ChatService
+    participant DB as Database
+    participant NS as NotificationService
+
+    %% Patient Booking Flow
+    Note over P,NS: Patient Appointment Booking
+    P->>UI: Fill booking form (name, age, condition, phone)
+    UI->>API: POST /api/appointments
+    API->>AS: createAppointment(appointmentData)
+    AS->>DB: INSERT appointment
+    AS->>DB: INSERT/UPDATE patient
+    DB-->>AS: return appointment_id
+    AS->>NS: sendAppointmentConfirmation(appointment)
+    NS->>P: SMS confirmation
+    AS-->>API: return appointment
+    API-->>UI: return success + appointment_id
+    UI-->>P: Show confirmation message
+
+    %% Admin Login and Dashboard
+    Note over P,NS: Admin Dashboard Access
+    P->>UI: Enter admin password (a0988)
+    UI->>API: POST /api/auth/admin
+    API->>Auth: authenticateAdmin(password)
+    Auth->>DB: SELECT user WHERE role='ADMIN'
+    DB-->>Auth: return user
+    Auth->>Auth: comparePassword(password, hash)
+    Auth-->>API: return JWT token
+    API-->>UI: return token + user_info
+    UI->>API: GET /api/appointments (with auth header)
+    API->>Auth: verifyToken(token)
+    Auth-->>API: return user
+    API->>AS: getAppointments(filters)
+    AS->>DB: SELECT appointments with patient data
+    DB-->>AS: return appointments[]
+    AS-->>API: return appointments
+    API-->>UI: return appointments
+    UI-->>P: Display appointments dashboard
+
+    %% Date Filtering
+    Note over P,NS: Date Filtering
+    P->>UI: Select date filter
+    UI->>API: GET /api/appointments?date=2024-01-15
+    API->>AS: getAppointmentsByDate(date)
+    AS->>DB: SELECT appointments WHERE date = ?
+    DB-->>AS: return filtered appointments
+    AS-->>API: return appointments
+    API-->>UI: return filtered data
+    UI-->>P: Update appointments list
+
+    %% Send Message to Patient
+    Note over P,NS: Admin Sending Message
+    P->>UI: Click "Send Message" for appointment
+    UI->>UI: Open message modal
+    P->>UI: Type message content
+    UI->>API: POST /api/messages
+    API->>MS: sendMessage(messageData)
+    MS->>DB: INSERT message
+    MS->>NS: sendSMS(patient_phone, content)
+    NS-->>MS: return delivery_status
+    MS->>DB: UPDATE message SET delivery_status
+    DB-->>MS: return message_id
+    MS-->>API: return message
+    API-->>UI: return success
+    UI-->>P: Show "Message sent" confirmation
+
+    %% Tech Support Login
+    Note over P,NS: Tech Support Access
+    P->>UI: Enter tech support password (ahmed0988634015)
+    UI->>API: POST /api/auth/tech-support
+    API->>Auth: authenticateTechSupport(password)
+    Auth->>DB: SELECT user WHERE role='TECH_SUPPORT'
+    DB-->>Auth: return user
+    Auth->>Auth: comparePassword(password, hash)
+    Auth-->>API: return JWT token
+    API-->>UI: return token + user_info
+
+    %% Content Management
+    Note over P,NS: Content Management
+    UI->>API: GET /api/content
+    API->>ContentService: getAllContent()
+    ContentService->>DB: SELECT * FROM system_content
+    DB-->>ContentService: return content[]
+    ContentService-->>API: return content
+    API-->>UI: return content
+    P->>UI: Edit content
+    UI->>API: PUT /api/content/:key
+    API->>ContentService: updateContent(key, value, user_id)
+    ContentService->>DB: UPDATE system_content
+    ContentService->>ActivityLog: logActivity("CONTENT_UPDATE")
+    DB-->>ContentService: return updated_content
+    ContentService-->>API: return content
+    API-->>UI: return success
+    UI-->>P: Show "Content updated"
+
+    %% Chat System
+    Note over P,NS: Chat Communication
+    P->>UI: Open chat interface
+    UI->>API: GET /api/chat/sessions
+    API->>CS: getActiveSessions()
+    CS->>DB: SELECT active chat_sessions
+    DB-->>CS: return sessions[]
+    CS-->>API: return sessions
+    API-->>UI: return chat_sessions
+    P->>UI: Send chat message
+    UI->>API: POST /api/chat/:session_id/messages
+    API->>CS: sendChatMessage(session_id, content, sender)
+    CS->>DB: INSERT message
+    CS->>WebSocket: broadcast message to session
+    DB-->>CS: return message
+    CS-->>API: return message
+    API-->>UI: return success
+    WebSocket-->>UI: real-time message update
+    UI-->>P: Display new message
+
+    %% Activity Logging
+    Note over P,NS: System Activity Logging
+    loop Every significant action
+        API->>ActivityLog: logActivity(action, details)
+        ActivityLog->>DB: INSERT activity_log
+        DB-->>ActivityLog: return log_id
+    end
