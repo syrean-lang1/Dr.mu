@@ -1,0 +1,192 @@
+classDiagram
+    class User {
+        +id: string
+        +username: string
+        +password_hash: string
+        +role: UserRole
+        +created_at: Date
+        +last_login: Date
+        +is_active: boolean
+        +login(password: string) Promise~AuthResult~
+        +logout() void
+        +validatePassword(password: string) boolean
+    }
+
+    class Patient {
+        +id: string
+        +name: string
+        +age: number
+        +phone: string
+        +condition: string
+        +created_at: Date
+        +updated_at: Date
+        +validatePhone() boolean
+        +validateAge() boolean
+        +getFullInfo() PatientInfo
+    }
+
+    class Appointment {
+        +id: string
+        +patient_id: string
+        +appointment_date: Date
+        +appointment_time: string
+        +status: AppointmentStatus
+        +notes: string
+        +created_at: Date
+        +updated_at: Date
+        +cancel() void
+        +reschedule(new_date: Date, new_time: string) void
+        +confirm() void
+        +getPatientInfo() Patient
+    }
+
+    class Message {
+        +id: string
+        +sender_id: string
+        +recipient_id: string
+        +content: string
+        +message_type: MessageType
+        +appointment_id: string
+        +is_read: boolean
+        +sent_at: Date
+        +markAsRead() void
+        +getMessageThread() Message[]
+    }
+
+    class ChatSession {
+        +id: string
+        +patient_phone: string
+        +is_active: boolean
+        +created_at: Date
+        +last_message_at: Date
+        +messages: Message[]
+        +sendMessage(content: string, sender: string) Message
+        +closeSession() void
+        +getMessageHistory() Message[]
+    }
+
+    class SystemContent {
+        +id: string
+        +content_key: string
+        +content_value: string
+        +content_type: ContentType
+        +updated_by: string
+        +updated_at: Date
+        +updateContent(new_value: string, user_id: string) void
+        +getContent(key: string) string
+    }
+
+    class ActivityLog {
+        +id: string
+        +user_id: string
+        +action: string
+        +resource_type: string
+        +resource_id: string
+        +details: string
+        +ip_address: string
+        +timestamp: Date
+        +logActivity(action: string, details: string) void
+        +getLogsByUser(user_id: string) ActivityLog[]
+    }
+
+    class AuthService {
+        +generateToken(user: User) string
+        +verifyToken(token: string) User
+        +hashPassword(password: string) string
+        +comparePassword(password: string, hash: string) boolean
+        +authenticateAdmin(password: string) AuthResult
+        +authenticateTechSupport(password: string) AuthResult
+    }
+
+    class AppointmentService {
+        +createAppointment(data: AppointmentData) Appointment
+        +getAppointments(filters: AppointmentFilters) Appointment[]
+        +getAppointmentsByDate(date: Date) Appointment[]
+        +updateAppointment(id: string, data: Partial~AppointmentData~) Appointment
+        +cancelAppointment(id: string) void
+        +getAvailableSlots(date: Date) string[]
+    }
+
+    class MessageService {
+        +sendMessage(data: MessageData) Message
+        +getMessages(filters: MessageFilters) Message[]
+        +markAsRead(message_id: string) void
+        +sendAppointmentReminder(appointment_id: string) Message
+        +broadcastMessage(content: string) Message[]
+    }
+
+    class ChatService {
+        +createChatSession(patient_phone: string) ChatSession
+        +getChatSession(session_id: string) ChatSession
+        +sendChatMessage(session_id: string, content: string, sender: string) Message
+        +getActiveSessions() ChatSession[]
+        +closeChatSession(session_id: string) void
+    }
+
+    class ContentService {
+        +getContent(key: string) string
+        +updateContent(key: string, value: string, user_id: string) SystemContent
+        +getAllContent() SystemContent[]
+        +getContentHistory(key: string) SystemContent[]
+    }
+
+    class NotificationService {
+        +sendSMS(phone: string, message: string) boolean
+        +sendAppointmentConfirmation(appointment: Appointment) void
+        +sendAppointmentReminder(appointment: Appointment) void
+        +notifyAppointmentChange(appointment: Appointment) void
+    }
+
+    %% Enums
+    class UserRole {
+        <<enumeration>>
+        ADMIN
+        TECH_SUPPORT
+        PATIENT
+    }
+
+    class AppointmentStatus {
+        <<enumeration>>
+        PENDING
+        CONFIRMED
+        CANCELLED
+        COMPLETED
+        NO_SHOW
+    }
+
+    class MessageType {
+        <<enumeration>>
+        APPOINTMENT_CONFIRMATION
+        APPOINTMENT_REMINDER
+        HEALTH_GUIDANCE
+        GENERAL_MESSAGE
+        CHAT_MESSAGE
+    }
+
+    class ContentType {
+        <<enumeration>>
+        TEXT
+        HTML
+        CONFIGURATION
+        TEMPLATE
+    }
+
+    %% Relationships
+    Patient ||--o{ Appointment : has
+    Appointment ||--o{ Message : generates
+    User ||--o{ ActivityLog : creates
+    User ||--o{ Message : sends
+    ChatSession ||--o{ Message : contains
+    SystemContent ||--o{ ActivityLog : tracks_changes
+
+    %% Service Dependencies
+    AuthService ..> User : authenticates
+    AppointmentService ..> Appointment : manages
+    AppointmentService ..> Patient : uses
+    MessageService ..> Message : handles
+    MessageService ..> Appointment : references
+    ChatService ..> ChatSession : manages
+    ChatService ..> Message : creates
+    ContentService ..> SystemContent : manages
+    NotificationService ..> Appointment : notifies
+    NotificationService ..> Patient : contacts
